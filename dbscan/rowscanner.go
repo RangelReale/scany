@@ -1,6 +1,7 @@
 package dbscan
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 )
@@ -34,6 +35,7 @@ type RowScanner struct {
 	started            bool
 	scanFn             func(dstVal reflect.Value) error
 	start              startScannerFunc
+	optional           bool
 	scans              []any
 }
 
@@ -45,10 +47,16 @@ func NewRowScanner(rows Rows) *RowScanner {
 
 // NewRowScanner returns a new instance of the RowScanner.
 func (api *API) NewRowScanner(rows Rows) *RowScanner {
+	return api.NewRowScannerOptional(rows, false)
+}
+
+// NewRowScannerOptional returns a new instance of the RowScanner.
+func (api *API) NewRowScannerOptional(rows Rows, optional bool) *RowScanner {
 	return &RowScanner{
-		api:   api,
-		rows:  rows,
-		start: startScanner,
+		api:      api,
+		rows:     rows,
+		start:    startScanner,
+		optional: optional,
 	}
 }
 
@@ -98,7 +106,11 @@ func startScanner(rs *RowScanner, dstValue reflect.Value) error {
 
 	if dstKind == reflect.Struct {
 		rs.columnToFieldIndex = rs.api.getColumnToFieldIndexMap(dstType)
-		rs.scanFn = rs.scanStruct
+		if rs.optional {
+			rs.scanFn = rs.scanStructOptional
+		} else {
+			rs.scanFn = rs.scanStruct
+		}
 		return nil
 	}
 
@@ -157,6 +169,84 @@ func (rs *RowScanner) scanStruct(structValue reflect.Value) error {
 	}
 	if err := rs.rows.Scan(rs.scans...); err != nil {
 		return fmt.Errorf("scany: scan row into struct fields: %w", err)
+	}
+	return nil
+}
+
+var scannerIface = reflect.TypeFor[sql.Scanner]()
+
+func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
+	if rs.scans == nil {
+		rs.scans = make([]interface{}, len(rs.columns))
+	}
+	scanValues := make([]reflect.Value, len(rs.columns))
+	for i, column := range rs.columns {
+		fieldIndex, ok := rs.columnToFieldIndex[column]
+		if !ok {
+			if rs.api.allowUnknownColumns {
+				var tmp noOpScanType
+				rs.scans[i] = &tmp
+				continue
+			}
+			return fmt.Errorf(
+				"scany: column: '%s': no corresponding field found, or it's unexported in %v",
+				column, structValue.Type(),
+			)
+		}
+		// // Struct may contain embedded structs by ptr that defaults to nil.
+		// // In order to scan values into a nested field,
+		// // we need to initialize all nil structs on its way.
+		// initializeNested(structValue, fieldIndex)
+
+		// fieldVal := structValue.FieldByIndex(fieldIndex)
+		fieldTyp := structValue.Type().FieldByIndex(fieldIndex).Type
+		var destValue reflect.Value
+		// if fieldVal.Type().Implements(scannerIface) || reflect.PointerTo(fieldVal.Type()).Implements(scannerIface) {
+		// 	// If the field type is itself a nullable/Scanner type (pgtype.Text,
+		// 	// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
+		// 	// enough and its own decode/Valid handles NULL. Otherwise use **T.
+		// 	destValue = reflect.New(fieldVal.Type())
+		// } else {
+		// 	destValue = reflect.New(reflect.PointerTo(fieldVal.Type()))
+		// }
+		if fieldTyp.Implements(scannerIface) || reflect.PointerTo(fieldTyp).Implements(scannerIface) {
+			// If the field type is itself a nullable/Scanner type (pgtype.Text,
+			// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
+			// enough and its own decode/Valid handles NULL. Otherwise use **T.
+			destValue = reflect.New(fieldTyp)
+		} else {
+			outputValue := reflect.New(fieldTyp)
+			destValue = reflect.New(reflect.PointerTo(fieldTyp))
+			destValue.Elem().Set(outputValue)
+		}
+		// rs.scans[i] = destValue.Addr().Interface()
+		scanValues[i] = destValue
+		rs.scans[i] = destValue.Interface()
+	}
+	if err := rs.rows.Scan(rs.scans...); err != nil {
+		return fmt.Errorf("scany: scan row into struct fields: %w", err)
+	}
+	for i, column := range rs.columns {
+		fieldIndex, ok := rs.columnToFieldIndex[column]
+		if !ok {
+			continue
+		}
+
+		sourceVal := scanValues[i].Elem()
+		if sourceVal.Kind() == reflect.Pointer {
+			if sourceVal.IsNil() {
+				break // NULL non-PK field: leave zero value
+			}
+			sourceVal = sourceVal.Elem()
+		}
+
+		// Struct may contain embedded structs by ptr that defaults to nil.
+		// In order to scan values into a nested field,
+		// we need to initialize all nil structs on its way.
+		initializeNested(structValue, fieldIndex)
+
+		fieldVal := structValue.FieldByIndex(fieldIndex)
+		fieldVal.Set(sourceVal)
 	}
 	return nil
 }

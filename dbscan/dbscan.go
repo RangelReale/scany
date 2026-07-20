@@ -189,7 +189,11 @@ func (api *API) AllowUnknownColumns() bool {
 // Before starting, ScanAll resets the destination slice,
 // so if it's not empty it will overwrite all existing elements.
 func (api *API) ScanAll(dst interface{}, rows Rows) error {
-	return api.processRows(dst, rows, true /* multipleRows. */, true /* closeRows. */)
+	return api.processRows(dst, rows, true /* multipleRows. */, true /* closeRows. */, false /* optional */)
+}
+
+func (api *API) ScanAllOptional(dst interface{}, rows Rows) error {
+	return api.processRows(dst, rows, true /* multipleRows. */, true /* closeRows. */, true /* optional */)
 }
 
 // ScanOne iterates all rows to the end and makes sure that there was exactly one row
@@ -198,15 +202,15 @@ func (api *API) ScanAll(dst interface{}, rows Rows) error {
 // and propagates any errors that could pop up.
 // It scans data from that single row into the destination.
 func (api *API) ScanOne(dst interface{}, rows Rows) error {
-	return api.processRows(dst, rows, false /* multipleRows. */, true /* closeRows. */)
+	return api.processRows(dst, rows, false /* multipleRows. */, true /* closeRows. */, false /* optional */)
 }
 
 // ScanAllSets iterates all rows to the end and scans data into each destination.
 // Multiple destinations is supported by multiple result sets.
 func (api *API) ScanAllSets(dsts []interface{}, rows Rows) error {
-	defer rows.Close() //nolint: errcheck
+	defer rows.Close() // nolint: errcheck
 	for i, dst := range dsts {
-		if err := api.processRows(dst, rows, true, false /* closeRows */); err != nil {
+		if err := api.processRows(dst, rows, true, false /* closeRows */, false /* optional */); err != nil {
 			return fmt.Errorf("error processing destination %d: %w", i, err)
 		}
 		if !rows.NextResultSet() {
@@ -231,9 +235,9 @@ type sliceDestinationMeta struct {
 	elementByPtr    bool
 }
 
-func (api *API) processRows(dst interface{}, rows Rows, multipleRows, closeRows bool) error {
+func (api *API) processRows(dst interface{}, rows Rows, multipleRows, closeRows, optional bool) error {
 	if closeRows {
-		defer rows.Close() //nolint: errcheck
+		defer rows.Close() // nolint: errcheck
 	}
 	var sliceMeta *sliceDestinationMeta
 	if multipleRows {
@@ -245,7 +249,7 @@ func (api *API) processRows(dst interface{}, rows Rows, multipleRows, closeRows 
 		// Make sure slice is empty.
 		sliceMeta.val.Set(sliceMeta.val.Slice(0, 0))
 	}
-	rs := api.NewRowScanner(rows)
+	rs := api.NewRowScannerOptional(rows, optional)
 	var rowsAffected int
 	for rows.Next() {
 		var err error
