@@ -215,9 +215,9 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 			// enough and its own decode/Valid handles NULL. Otherwise use **T.
 			destValue = reflect.New(fieldTyp)
 		} else {
-			outputValue := reflect.New(fieldTyp)
+			// outputValue := reflect.New(fieldTyp)
 			destValue = reflect.New(reflect.PointerTo(fieldTyp))
-			destValue.Elem().Set(outputValue)
+			// destValue.Elem().Set(outputValue)
 		}
 		// rs.scans[i] = destValue.Addr().Interface()
 		scanValues[i] = destValue
