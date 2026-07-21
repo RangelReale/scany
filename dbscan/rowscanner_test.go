@@ -787,6 +787,23 @@ func TestRowScanner_Scan_structDestination_optional(t *testing.T) {
 			},
 		},
 		{
+			name: "nested structs by ptr are not initialized if value not filled",
+			query: `
+				SELECT 'foo val' AS foo, 'bar val' AS bar, NULL AS "bar_nested.bar_nested"
+			`,
+			expected: struct {
+				*FooNested
+				BarNested *BarNested
+				Foo       string
+				Bar       string
+			}{
+				FooNested: nil,
+				BarNested: nil,
+				Foo:       "foo val",
+				Bar:       "bar val",
+			},
+		},
+		{
 			name: "ambiguous fields: scanned in the topmost field",
 			query: `
 				SELECT 'foo val' as foo

@@ -236,22 +236,17 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 
 		fieldTyp := structValue.Type().FieldByIndex(fieldIndex).Type
 
-		// sourceVal := scanValues[i].Elem()
-		// if sourceVal.Kind() == reflect.Pointer {
-		// 	if sourceVal.IsNil() {
-		// 		continue // NULL non-PK field: leave zero value
-		// 	}
-		// 	if fieldTyp.Kind() != reflect.Pointer {
-		// 		sourceVal = sourceVal.Elem()
-		// 	}
-		// }
-		sourceVal := scanValues[i]
+		sourceVal := scanValues[i].Elem()
+		// fmt.Printf("%s: START[%s]\n", column, dump(sourceVal))
 		if sourceVal.IsNil() {
 			continue // NULL non-PK field: leave zero value
 		}
-		sourceVal = sourceVal.Elem()
 		if fieldTyp.Kind() != reflect.Pointer {
 			sourceVal = sourceVal.Elem()
+		}
+		// fmt.Printf("%s: THIRD[%s]\n", column, dump(sourceVal))
+		if !sourceVal.IsValid() {
+			return fmt.Errorf("scany: column: '%s': not valid", column)
 		}
 
 		// Struct may contain embedded structs by ptr that defaults to nil.

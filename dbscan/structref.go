@@ -1,6 +1,7 @@
 package dbscan
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -110,4 +111,21 @@ func initializeNested(structValue reflect.Value, fieldIndex []int) {
 	if len(fieldIndex) > 1 {
 		initializeNested(reflect.Indirect(field), fieldIndex[1:])
 	}
+}
+
+func dump(v reflect.Value) string {
+	if !v.IsValid() {
+		return "<invalid/zero Value>"
+	}
+	var ret strings.Builder
+	_, _ = fmt.Fprintf(&ret, "kind=%s type=%s canSet=%t canAddr=%t",
+		v.Kind(), v.Type(), v.CanSet(), v.CanAddr())
+	if v.Kind() == reflect.Pointer {
+		_, _ = fmt.Fprintf(&ret, " isNil=%t", v.IsNil())
+	}
+	// Only read the value if it's safe to
+	if v.IsValid() && (v.Kind() != reflect.Pointer || !v.IsNil()) && v.CanInterface() {
+		_, _ = fmt.Fprintf(&ret, " value=%#v", v.Interface())
+	}
+	return ret.String()
 }
