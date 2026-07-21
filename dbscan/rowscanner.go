@@ -193,36 +193,10 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 				column, structValue.Type(),
 			)
 		}
-		// // Struct may contain embedded structs by ptr that defaults to nil.
-		// // In order to scan values into a nested field,
-		// // we need to initialize all nil structs on its way.
-		// initializeNested(structValue, fieldIndex)
 
-		// fieldVal := structValue.FieldByIndex(fieldIndex)
 		fieldTyp := structValue.Type().FieldByIndex(fieldIndex).Type
-		var destValue reflect.Value
-		// if fieldVal.Type().Implements(scannerIface) || reflect.PointerTo(fieldVal.Type()).Implements(scannerIface) {
-		// 	// If the field type is itself a nullable/Scanner type (pgtype.Text,
-		// 	// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
-		// 	// enough and its own decode/Valid handles NULL. Otherwise use **T.
-		// 	destValue = reflect.New(fieldVal.Type())
-		// } else {
-		// 	destValue = reflect.New(reflect.PointerTo(fieldVal.Type()))
-		// }
-		// if fieldTyp.Kind() == reflect.Pointer {
-		// 	destValue = reflect.New(fieldTyp)
-		// 	// } else if fieldTyp.Implements(scannerIface) {
-		// 	// 	// If the field type is itself a nullable/Scanner type (pgtype.Text,
-		// 	// 	// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
-		// 	// 	// enough and its own decode/Valid handles NULL. Otherwise use **T.
-		// 	// 	destValue = reflect.New(fieldTyp)
-		// } else {
-		// 	// outputValue := reflect.New(fieldTyp)
-		// 	destValue = reflect.New(reflect.PointerTo(fieldTyp))
-		// 	// destValue.Elem().Set(outputValue)
-		// }
-		destValue = reflect.New(reflect.PointerTo(fieldTyp))
-		// rs.scans[i] = destValue.Addr().Interface()
+		destValue := reflect.New(reflect.PointerTo(fieldTyp))
+
 		scanValues[i] = destValue
 		rs.scans[i] = destValue.Interface()
 	}
@@ -235,24 +209,9 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 			continue
 		}
 
-		// fieldTyp := structValue.Type().FieldByIndex(fieldIndex).Type
-
-		// sourceVal := scanValues[i].Elem()
-		// // fmt.Printf("%s: START[%s]\n", column, dump(sourceVal))
-		// if sourceVal.IsNil() && !isInitializeNested(structValue, fieldIndex) {
-		// 	continue // NULL non-PK field: leave zero value
-		// }
-		// if fieldTyp.Kind() != reflect.Pointer {
-		// 	sourceVal = sourceVal.Elem()
-		// }
-		// // fmt.Printf("%s: THIRD[%s]\n", column, dump(sourceVal))
-		// if !sourceVal.IsValid() {
-		// 	return fmt.Errorf("scany: column: '%s': not valid", column)
-		// }
-
 		sourceVal := scanValues[i].Elem()
 		if sourceVal.IsNil() {
-			continue // NULL non-PK field: leave zero value
+			continue // value was not set, leave zero value.
 		}
 		sourceVal = sourceVal.Elem()
 
