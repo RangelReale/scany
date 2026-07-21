@@ -238,7 +238,7 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 
 		sourceVal := scanValues[i].Elem()
 		// fmt.Printf("%s: START[%s]\n", column, dump(sourceVal))
-		if sourceVal.IsNil() {
+		if sourceVal.IsNil() && !isInitializeNested(structValue, fieldIndex) {
 			continue // NULL non-PK field: leave zero value
 		}
 		if fieldTyp.Kind() != reflect.Pointer {

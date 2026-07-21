@@ -113,6 +113,19 @@ func initializeNested(structValue reflect.Value, fieldIndex []int) {
 	}
 }
 
+func isInitializeNested(structValue reflect.Value, fieldIndex []int) bool {
+	i := fieldIndex[0]
+	field := structValue.Field(i)
+
+	if field.Kind() == reflect.Pointer && field.Type().Elem().Kind() == reflect.Struct && field.IsNil() {
+		return false
+	}
+	if len(fieldIndex) > 1 {
+		return isInitializeNested(reflect.Indirect(field), fieldIndex[1:])
+	}
+	return true
+}
+
 func dump(v reflect.Value) string {
 	if !v.IsValid() {
 		return "<invalid/zero Value>"
