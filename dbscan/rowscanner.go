@@ -1,7 +1,6 @@
 package dbscan
 
 import (
-	"database/sql"
 	"fmt"
 	"reflect"
 )
@@ -172,8 +171,6 @@ func (rs *RowScanner) scanStruct(structValue reflect.Value) error {
 	}
 	return nil
 }
-
-var scannerIface = reflect.TypeFor[sql.Scanner]()
 
 func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 	if rs.scans == nil {
