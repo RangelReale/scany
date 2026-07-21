@@ -1,6 +1,7 @@
 package dbscan_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -507,6 +508,21 @@ func TestRowScanner_Scan_structDestination_optional(t *testing.T) {
 			}{
 				FooColumn: "foo val",
 				BarColumn: "bar val",
+			},
+		},
+		{
+			name: "sql.Null types",
+			query: `
+				SELECT 'foo val' AS foo_column, 'bar val' AS bar_column, 'for val' AS for_column
+			`,
+			expected: struct {
+				FooColumn string
+				BarColumn string
+				ForColumn sql.NullString
+			}{
+				FooColumn: "foo val",
+				BarColumn: "bar val",
+				ForColumn: sql.NullString{String: "for val", Valid: true},
 			},
 		},
 		{

@@ -209,11 +209,13 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 		// } else {
 		// 	destValue = reflect.New(reflect.PointerTo(fieldVal.Type()))
 		// }
-		if fieldTyp.Implements(scannerIface) || reflect.PointerTo(fieldTyp).Implements(scannerIface) {
-			// If the field type is itself a nullable/Scanner type (pgtype.Text,
-			// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
-			// enough and its own decode/Valid handles NULL. Otherwise use **T.
+		if fieldTyp.Kind() == reflect.Pointer {
 			destValue = reflect.New(fieldTyp)
+			// } else if fieldTyp.Implements(scannerIface) {
+			// 	// If the field type is itself a nullable/Scanner type (pgtype.Text,
+			// 	// uuid.NullUUID, a custom Scanner), don't double-wrap — one level is
+			// 	// enough and its own decode/Valid handles NULL. Otherwise use **T.
+			// 	destValue = reflect.New(fieldTyp)
 		} else {
 			// outputValue := reflect.New(fieldTyp)
 			destValue = reflect.New(reflect.PointerTo(fieldTyp))
@@ -232,11 +234,23 @@ func (rs *RowScanner) scanStructOptional(structValue reflect.Value) error {
 			continue
 		}
 
-		sourceVal := scanValues[i].Elem()
-		if sourceVal.Kind() == reflect.Pointer {
-			if sourceVal.IsNil() {
-				break // NULL non-PK field: leave zero value
-			}
+		fieldTyp := structValue.Type().FieldByIndex(fieldIndex).Type
+
+		// sourceVal := scanValues[i].Elem()
+		// if sourceVal.Kind() == reflect.Pointer {
+		// 	if sourceVal.IsNil() {
+		// 		continue // NULL non-PK field: leave zero value
+		// 	}
+		// 	if fieldTyp.Kind() != reflect.Pointer {
+		// 		sourceVal = sourceVal.Elem()
+		// 	}
+		// }
+		sourceVal := scanValues[i]
+		if sourceVal.IsNil() {
+			continue // NULL non-PK field: leave zero value
+		}
+		sourceVal = sourceVal.Elem()
+		if fieldTyp.Kind() != reflect.Pointer {
 			sourceVal = sourceVal.Elem()
 		}
 
